@@ -215,6 +215,21 @@ npm run build
 npm test
 ```
 
+### Test Bench
+
+A Next.js app for testing ShipKit interactively:
+
+```bash
+cd test-bench
+npm install
+npm run dev
+```
+
+Open http://localhost:3000 to:
+- Discover components from your codebase
+- Describe features in natural language
+- See generated code with live preview
+
 ## License
 
 MIT © Andreas Wissel

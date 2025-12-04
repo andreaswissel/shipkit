@@ -1,8 +1,9 @@
 # ShipKit Roadmap
 
-## In Progress
+## Completed
 
-- [ ] Wire up unified `ShipKit.ship()` flow (auth → generate → validate → write → PR → flag)
+- [x] Wire up unified `ShipKit.ship()` flow (auth → generate → validate → write → PR → flag)
+- [x] Test bench Next.js app with prompt UI
 
 ## Next Up: Component Discovery Enhancements
 

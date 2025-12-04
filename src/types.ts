@@ -74,10 +74,36 @@ export interface ValidationResult {
   warnings: string[];
 }
 
+export interface AuthResult {
+  authorized: boolean;
+  reason?: string;
+}
+
+export interface AuthProvider {
+  authorize(user: User, action: ShipAction): Promise<AuthResult>;
+}
+
+export type ShipAction = "ship" | "deploy" | "rollback";
+
+export interface User {
+  id: string;
+  email: string;
+  roles: string[];
+}
+
 export interface ShipKitConfig {
   framework: Framework;
   componentsDir: string;
   outputDir: string;
   style?: StyleConfig;
   aiProvider: AIProvider;
+}
+
+export interface ShipOptions {
+  validate?: boolean;
+  write?: boolean;
+  dryRun?: boolean;
+  createPR?: boolean;
+  createFlag?: boolean;
+  branchPrefix?: string;
 }

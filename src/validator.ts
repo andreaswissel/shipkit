@@ -141,20 +141,23 @@ export class CodeValidator {
       "wbr",
     ]);
 
+    const strippedCode = this.stripJsxExpressionContent(code);
+
     const tagStack: string[] = [];
-    const tagRegex = /<\/?([A-Za-z][A-Za-z0-9]*)[^>]*\/?>/g;
+    const tagRegex = /<\/?([A-Za-z][A-Za-z0-9.]*)[^>]*\/?>/g;
     let match;
 
-    while ((match = tagRegex.exec(code)) !== null) {
+    while ((match = tagRegex.exec(strippedCode)) !== null) {
       const fullMatch = match[0];
-      const tagName = match[1].toLowerCase();
+      const tagName = match[1];
+      const tagNameLower = tagName.toLowerCase();
 
       if (fullMatch.endsWith("/>")) continue;
-      if (selfClosingTags.has(tagName)) continue;
+      if (selfClosingTags.has(tagNameLower)) continue;
 
       if (fullMatch.startsWith("</")) {
         if (tagStack.length === 0 || tagStack[tagStack.length - 1] !== tagName) {
-          errors.push(`Unexpected closing tag: </${match[1]}>`);
+          errors.push(`Unexpected closing tag: </${tagName}>`);
         } else {
           tagStack.pop();
         }
@@ -168,6 +171,86 @@ export class CodeValidator {
     }
 
     return errors;
+  }
+
+  private stripJsxExpressionContent(code: string): string {
+    let result = "";
+    let inString = false;
+    let stringChar = "";
+    let inTemplate = false;
+    let braceDepth = 0;
+    let inJsxExpressionBlock = false;
+
+    for (let i = 0; i < code.length; i++) {
+      const char = code[i];
+      const prevChar = i > 0 ? code[i - 1] : "";
+
+      if (prevChar === "\\" && (inString || inTemplate)) {
+        if (!inJsxExpressionBlock) result += char;
+        continue;
+      }
+
+      if (!inString && !inTemplate && (char === '"' || char === "'")) {
+        inString = true;
+        stringChar = char;
+        if (!inJsxExpressionBlock) result += char;
+        continue;
+      }
+
+      if (inString && char === stringChar) {
+        inString = false;
+        if (!inJsxExpressionBlock) result += char;
+        continue;
+      }
+
+      if (!inString && !inTemplate && char === "`") {
+        inTemplate = true;
+        if (!inJsxExpressionBlock) result += char;
+        continue;
+      }
+
+      if (inTemplate && char === "`") {
+        inTemplate = false;
+        if (!inJsxExpressionBlock) result += char;
+        continue;
+      }
+
+      if (inString || inTemplate) {
+        if (!inJsxExpressionBlock) result += char;
+        continue;
+      }
+
+      if (char === "{") {
+        braceDepth++;
+        if (braceDepth === 1) {
+          const before = result.slice(-50);
+          if (/>\s*$/.test(before) || /<[A-Za-z][^>]*$/.test(before)) {
+            inJsxExpressionBlock = true;
+            result += "{";
+            continue;
+          }
+        }
+        result += char;
+        continue;
+      }
+
+      if (char === "}") {
+        braceDepth--;
+        if (inJsxExpressionBlock && braceDepth === 0) {
+          inJsxExpressionBlock = false;
+          result += "}";
+          continue;
+        }
+        if (!inJsxExpressionBlock) result += char;
+        continue;
+      }
+
+      if (!inJsxExpressionBlock) {
+        result += char;
+      }
+    }
+
+    return result;
   }
 
   private hasImportStatements(code: string): boolean {
@@ -206,14 +289,31 @@ export class CodeValidator {
     const checks = frameworkChecks[framework] || [];
     for (const { pattern, importName } of checks) {
       if (pattern.test(code)) {
-        const importPattern = new RegExp(`import\\s*\\{[^}]*\\b${importName}\\b[^}]*\\}`, "m");
-        if (!importPattern.test(code)) {
+        if (!this.hasImport(code, importName)) {
           warnings.push(`Possibly missing import: ${importName}`);
         }
       }
     }
 
     return warnings;
+  }
+
+  private hasImport(code: string, importName: string): boolean {
+    const normalizedCode = code.replace(/\s+/g, " ");
+    
+    const namedImportPattern = new RegExp(
+      `import\\s+[^;]*\\{[^}]*\\b${importName}\\b[^}]*\\}\\s*from`,
+      "i"
+    );
+    if (namedImportPattern.test(normalizedCode)) return true;
+    
+    const destructuredPattern = new RegExp(
+      `const\\s*\\{[^}]*\\b${importName}\\b[^}]*\\}\\s*=\\s*(require|React)`,
+      "i"
+    );
+    if (destructuredPattern.test(normalizedCode)) return true;
+
+    return false;
   }
 
   private hasUnmatchedBraces(code: string): boolean {

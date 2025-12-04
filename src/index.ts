@@ -1,4 +1,5 @@
 export { ShipKit, createShipKit } from "./shipkit.js";
+export type { ShipKitFullConfig, FullShipResult } from "./shipkit.js";
 export { ComponentRegistry } from "./registry.js";
 export { ComponentDiscovery, type DiscoveryOptions } from "./discovery.js";
 export { FileWriter } from "./writer.js";
@@ -15,6 +16,8 @@ export type {
 export type {
   AIContext,
   AIProvider,
+  AuthProvider,
+  AuthResult,
   Component,
   FeatureSpec,
   Framework,
@@ -22,19 +25,16 @@ export type {
   GeneratedFeature,
   GeneratedFile,
   PropDefinition,
+  ShipAction,
   ShipKitConfig,
+  ShipOptions,
   ShipResult,
   StyleConfig,
+  User,
   ValidationResult,
 } from "./types.js";
 export { MockAuthProvider } from "./auth.js";
-export type {
-  AuthProvider,
-  AuthResult,
-  MockAuthConfig,
-  ShipAction,
-  User,
-} from "./auth.js";
+export type { MockAuthConfig } from "./auth.js";
 export { InMemoryFlagProvider, FileFlagProvider } from "./flags.js";
 export type {
   FeatureFlagProvider,

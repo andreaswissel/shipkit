@@ -1,19 +1,6 @@
-export interface User {
-  id: string;
-  email: string;
-  roles: string[];
-}
+import type { AuthProvider, AuthResult, ShipAction, User } from "./types.js";
 
-export type ShipAction = "ship" | "deploy" | "rollback";
-
-export interface AuthResult {
-  authorized: boolean;
-  reason?: string;
-}
-
-export interface AuthProvider {
-  authorize(user: User, action: ShipAction): Promise<AuthResult>;
-}
+export type { AuthProvider, AuthResult, ShipAction, User };
 
 export interface MockAuthConfig {
   allowedRoles?: Record<ShipAction, string[]>;
