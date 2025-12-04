@@ -1,5 +1,5 @@
 {
-  "name": "shipkit",
+  "name": "@andreaswissel/shipkit",
   "version": "0.1.0",
   "description": "AI-powered frontend feature shipping engine",
   "type": "module",
@@ -28,7 +28,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/andreaswissel/shipkit"
+    "url": "git+https://github.com/andreaswissel/shipkit.git"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
@@ -48,5 +48,42 @@
     "openai": {
       "optional": true
     }
+  },
+  "dependencies": {
+    "assertion-error": "^2.0.1",
+    "chai": "^6.2.1",
+    "es-module-lexer": "^1.7.0",
+    "esbuild": "^0.25.12",
+    "estree-walker": "^3.0.3",
+    "expect-type": "^1.2.2",
+    "fdir": "^6.5.0",
+    "json-schema-to-ts": "^3.1.1",
+    "magic-string": "^0.30.21",
+    "nanoid": "^3.3.11",
+    "obug": "^2.1.1",
+    "pathe": "^2.0.3",
+    "picocolors": "^1.1.1",
+    "picomatch": "^4.0.3",
+    "postcss": "^8.5.6",
+    "rollup": "^4.53.3",
+    "siginfo": "^2.0.0",
+    "source-map-js": "^1.2.1",
+    "stackback": "^0.0.2",
+    "std-env": "^3.10.0",
+    "tinybench": "^2.9.0",
+    "tinyexec": "^1.0.2",
+    "tinyglobby": "^0.2.15",
+    "tinyrainbow": "^3.0.3",
+    "ts-algebra": "^2.0.0",
+    "undici-types": "^7.16.0",
+    "vite": "^7.2.6",
+    "why-is-node-running": "^2.3.0"
+  },
+  "bugs": {
+    "url": "https://github.com/andreaswissel/shipkit/issues"
+  },
+  "homepage": "https://github.com/andreaswissel/shipkit#readme",
+  "publishConfig": {
+    "access": "public"
   }
 }

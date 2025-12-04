@@ -15,7 +15,7 @@ AI-powered frontend feature shipping engine. What if your software could ship so
 ## Install
 
 ```bash
-npm install shipkit
+npm install @andreaswissel/shipkit@latest
 ```
 
 ## Quick Start
