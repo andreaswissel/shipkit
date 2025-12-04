@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="cover.jpg" alt="Cover image" width="640" /><br>
+</p>
+
+
 # shipkit
 
 AI-powered frontend feature shipping engine. What if your software could ship software?
