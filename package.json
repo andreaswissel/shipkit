@@ -1,0 +1,52 @@
+{
+  "name": "shipkit",
+  "version": "0.1.0",
+  "description": "AI-powered frontend feature shipping engine",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "check": "tsc --noEmit",
+    "test": "node --experimental-vm-modules node_modules/vitest/vitest.mjs"
+  },
+  "keywords": [
+    "ai",
+    "frontend",
+    "code-generation",
+    "shipping",
+    "automation"
+  ],
+  "author": "Andreas Wissel",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/andreaswissel/shipkit"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "^0.71.0",
+    "@types/node": "^24.10.1",
+    "openai": "^6.9.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.15"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/sdk": ">=0.24.0",
+    "openai": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/sdk": {
+      "optional": true
+    },
+    "openai": {
+      "optional": true
+    }
+  }
+}
