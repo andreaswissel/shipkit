@@ -33,6 +33,28 @@ export interface FullShipResult extends ShipResult {
   flagName?: string;
 }
 
+interface ResolvedShipOptions {
+  validate: boolean;
+  write: boolean;
+  dryRun: boolean;
+  createPR: boolean;
+  createFlag: boolean;
+  branchPrefix: string;
+}
+
+interface AIResponseComponent {
+  name: string;
+  code: string;
+  path: string;
+  usedComponents?: string[];
+}
+
+interface AIResponse {
+  components?: AIResponseComponent[];
+  entryPoint?: string;
+  dependencies?: string[];
+}
+
 export class ShipKit {
   private registry: ComponentRegistry;
   private config: ShipKitFullConfig;
@@ -65,130 +87,202 @@ export class ShipKit {
     options: ShipOptions = {},
     user?: User
   ): Promise<FullShipResult> {
-    const {
-      validate = true,
-      write = true,
-      dryRun = false,
-      createPR = false,
-      createFlag = false,
-      branchPrefix = "feature/shipkit-",
-    } = options;
+    const opts = this.resolveOptions(options);
 
-    if (user && this.config.authProvider) {
-      const authResult = await this.config.authProvider.authorize(user, "ship");
-      if (!authResult.authorized) {
-        return {
-          success: false,
-          feature: this.emptyFeature(spec),
-          files: [],
-          errors: [authResult.reason ?? "Authorization denied"],
-        };
-      }
+    const authError = await this.checkAuthorization(spec, user);
+    if (authError) return authError;
+
+    const featureResult = await this.generateFeature(spec);
+    if (!featureResult.success) return featureResult;
+
+    const feature = featureResult.feature;
+    const files = this.generateFiles(feature);
+    const result: FullShipResult = { success: true, feature, files };
+
+    const validationError = await this.runValidation(result, opts);
+    if (validationError) return validationError;
+
+    const writeError = await this.writeFiles(result, opts);
+    if (writeError) return writeError;
+
+    const prError = await this.createPullRequest(spec, result, opts);
+    if (prError) return prError;
+
+    await this.createFeatureFlag(spec, result, opts);
+
+    return result;
+  }
+
+  private resolveOptions(options: ShipOptions): ResolvedShipOptions {
+    return {
+      validate: options.validate ?? true,
+      write: options.write ?? true,
+      dryRun: options.dryRun ?? false,
+      createPR: options.createPR ?? false,
+      createFlag: options.createFlag ?? false,
+      branchPrefix: options.branchPrefix ?? "feature/shipkit-",
+    };
+  }
+
+  private failureResult(spec: FeatureSpec, errors: string[]): FullShipResult {
+    return {
+      success: false,
+      feature: this.emptyFeature(spec),
+      files: [],
+      errors,
+    };
+  }
+
+  private async checkAuthorization(
+    spec: FeatureSpec,
+    user?: User
+  ): Promise<FullShipResult | null> {
+    if (!user || !this.config.authProvider) return null;
+
+    const authResult = await this.config.authProvider.authorize(user, "ship");
+    if (!authResult.authorized) {
+      return this.failureResult(spec, [authResult.reason ?? "Authorization denied"]);
     }
+    return null;
+  }
 
+  private async generateFeature(
+    spec: FeatureSpec
+  ): Promise<{ success: true; feature: GeneratedFeature } | FullShipResult> {
     const context = this.buildContext();
     const prompt = this.buildPrompt(spec, context);
 
-    let feature: GeneratedFeature;
     try {
       const response = await this.config.aiProvider.generate(prompt, context);
-      feature = this.parseResponse(response, spec);
+      const feature = this.parseResponse(response, spec);
+      return { success: true, feature };
     } catch (error) {
-      return {
-        success: false,
-        feature: this.emptyFeature(spec),
-        files: [],
-        errors: [error instanceof Error ? error.message : String(error)],
-      };
+      return this.failureResult(
+        spec,
+        [error instanceof Error ? error.message : String(error)]
+      );
+    }
+  }
+
+  private async runValidation(
+    result: FullShipResult,
+    opts: ResolvedShipOptions
+  ): Promise<FullShipResult | null> {
+    if (!opts.validate) return null;
+
+    const validations = await Promise.all(
+      result.feature.components.map((component) =>
+        this.validator.validate(component.code, this.config.framework)
+      )
+    );
+
+    const validationErrors: string[] = [];
+    const validationWarnings: string[] = [];
+
+    for (const v of validations) {
+      validationErrors.push(...v.errors);
+      validationWarnings.push(...v.warnings);
     }
 
-    const files = this.generateFiles(feature);
-    const result: FullShipResult = {
-      success: true,
-      feature,
-      files,
+    result.validation = {
+      valid: validationErrors.length === 0,
+      errors: validationErrors,
+      warnings: validationWarnings,
     };
 
-    if (validate) {
-      const validationErrors: string[] = [];
-      const validationWarnings: string[] = [];
-
-      for (const component of feature.components) {
-        const validation = await this.validator.validate(
-          component.code,
-          this.config.framework
-        );
-        validationErrors.push(...validation.errors);
-        validationWarnings.push(...validation.warnings);
-      }
-
-      result.validation = {
-        valid: validationErrors.length === 0,
-        errors: validationErrors,
-        warnings: validationWarnings,
-      };
-
-      if (!result.validation.valid) {
-        result.success = false;
-        result.errors = validationErrors;
-        return result;
-      }
+    if (!result.validation.valid) {
+      result.success = false;
+      result.errors = validationErrors;
+      return result;
     }
 
-    if (write && !createPR) {
-      result.writeResult = await this.writer.write(files, { dryRun });
-      if (!result.writeResult.success) {
-        result.success = false;
-        result.errors = result.writeResult.errors.map((e) => e.error);
-        return result;
-      }
+    return null;
+  }
+
+  private async writeFiles(
+    result: FullShipResult,
+    opts: ResolvedShipOptions
+  ): Promise<FullShipResult | null> {
+    if (!opts.write || opts.createPR) return null;
+
+    result.writeResult = await this.writer.write(result.files, { dryRun: opts.dryRun });
+    if (!result.writeResult.success) {
+      result.success = false;
+      result.errors = result.writeResult.errors.map((e) => e.error);
+      return result;
     }
 
-    if (createPR && this.config.pipeline) {
-      const branchName = `${branchPrefix}${this.slugify(spec.name)}`;
+    return null;
+  }
 
-      try {
-        await this.config.pipeline.createBranch(branchName);
-        await this.config.pipeline.commit(
-          files,
-          `feat: add ${spec.name} feature via ShipKit`
-        );
-        result.pullRequest = await this.config.pipeline.createPullRequest({
-          title: `feat: ${spec.name}`,
-          body: this.buildPRDescription(spec, feature),
-          head: branchName,
-          base: "main",
-          labels: ["shipkit", "generated"],
-        });
-      } catch (error) {
-        result.success = false;
-        result.errors = [
-          `Pipeline error: ${error instanceof Error ? error.message : String(error)}`,
-        ];
-        return result;
-      }
+  private async createPullRequest(
+    spec: FeatureSpec,
+    result: FullShipResult,
+    opts: ResolvedShipOptions
+  ): Promise<FullShipResult | null> {
+    if (!opts.createPR) return null;
+
+    if (!this.config.pipeline) {
+      result.success = false;
+      result.errors = ["createPR requested but no pipeline configured"];
+      return result;
     }
 
-    if (createFlag && this.config.flagProvider) {
-      const flagName = `shipkit-${this.slugify(spec.name)}`;
-      const flagConfig: FlagConfig = {
-        description: `Feature flag for ${spec.name}`,
-        defaultEnabled: false,
-        rolloutPercentage: 0,
-      };
+    const branchName = `${opts.branchPrefix}${this.slugify(spec.name)}`;
 
-      try {
-        await this.config.flagProvider.createFlag(flagName, flagConfig);
-        result.flagName = flagName;
-      } catch (error) {
-        result.errors = result.errors ?? [];
-        result.errors.push(
-          `Flag creation warning: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
+    try {
+      await this.config.pipeline.createBranch(branchName);
+      await this.config.pipeline.commit(
+        result.files,
+        `feat: add ${spec.name} feature via ShipKit`
+      );
+      result.pullRequest = await this.config.pipeline.createPullRequest({
+        title: `feat: ${spec.name}`,
+        body: this.buildPRDescription(spec, result.feature),
+        head: branchName,
+        base: "main",
+        labels: ["shipkit", "generated"],
+      });
+    } catch (error) {
+      result.success = false;
+      result.errors = [
+        `Pipeline error: ${error instanceof Error ? error.message : String(error)}`,
+      ];
+      return result;
     }
 
-    return result;
+    return null;
+  }
+
+  private async createFeatureFlag(
+    spec: FeatureSpec,
+    result: FullShipResult,
+    opts: ResolvedShipOptions
+  ): Promise<void> {
+    if (!opts.createFlag) return;
+
+    if (!this.config.flagProvider) {
+      result.errors = result.errors ?? [];
+      result.errors.push("createFlag requested but no flag provider configured");
+      return;
+    }
+
+    const flagName = `shipkit-${this.slugify(spec.name)}`;
+    const flagConfig: FlagConfig = {
+      description: `Feature flag for ${spec.name}`,
+      defaultEnabled: false,
+      rolloutPercentage: 0,
+    };
+
+    try {
+      await this.config.flagProvider.createFlag(flagName, flagConfig);
+      result.flagName = flagName;
+    } catch (error) {
+      result.errors = result.errors ?? [];
+      result.errors.push(
+        `Flag creation warning: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
 
   private emptyFeature(spec: FeatureSpec): GeneratedFeature {
@@ -281,19 +375,39 @@ Return ONLY valid JSON, no markdown or explanation.`;
   }
 
   private parseResponse(response: string, spec: FeatureSpec): GeneratedFeature {
-    try {
-      const cleaned = response.replace(/```json\n?|\n?```/g, "").trim();
-      const parsed = JSON.parse(cleaned);
+    const cleaned = response.replace(/```json\n?|\n?```/g, "").trim();
 
-      return {
-        spec,
-        components: parsed.components || [],
-        entryPoint: parsed.entryPoint || "",
-        dependencies: parsed.dependencies || [],
-      };
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(cleaned);
     } catch {
-      throw new Error("Failed to parse AI response as valid feature JSON");
+      throw new Error("Failed to parse AI response as valid JSON");
     }
+
+    const data = parsed as Partial<AIResponse>;
+    const components = Array.isArray(data.components) ? data.components : [];
+
+    const safeComponents = components
+      .filter(
+        (c): c is AIResponseComponent =>
+          !!c &&
+          typeof c.name === "string" &&
+          typeof c.code === "string" &&
+          typeof c.path === "string"
+      )
+      .map((c) => ({
+        name: c.name,
+        code: c.code,
+        path: c.path,
+        usedComponents: Array.isArray(c.usedComponents) ? c.usedComponents : [],
+      }));
+
+    return {
+      spec,
+      components: safeComponents,
+      entryPoint: typeof data.entryPoint === "string" ? data.entryPoint : "",
+      dependencies: Array.isArray(data.dependencies) ? data.dependencies : [],
+    };
   }
 
   private generateFiles(feature: GeneratedFeature) {

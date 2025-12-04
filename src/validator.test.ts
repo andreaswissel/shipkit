@@ -86,7 +86,7 @@ function test() {
       `;
       const result = await validator.validate(code, 'react');
       expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.includes('parenthes'))).toBe(true);
+      expect(result.errors.some(e => e.includes("')' expected"))).toBe(true);
     });
   });
 
@@ -102,7 +102,7 @@ function Component() {
       `;
       const result = await validator.validate(code, 'react');
       expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.includes('Unclosed tag') && e.includes('div'))).toBe(true);
+      expect(result.errors.some(e => e.includes('no corresponding closing tag'))).toBe(true);
     });
 
     it('detects unexpected closing tag', async () => {
@@ -117,7 +117,7 @@ function Component() {
       `;
       const result = await validator.validate(code, 'react');
       expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.includes('Unexpected closing tag'))).toBe(true);
+      expect(result.errors.some(e => e.includes('Expected corresponding JSX closing tag'))).toBe(true);
     });
 
     it('allows self-closing tags', async () => {

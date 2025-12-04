@@ -263,22 +263,16 @@ export function Preview({ code, componentName }: PreviewProps) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (loaded && iframeRef.current?.contentWindow && code) {
-      iframeRef.current.contentWindow.postMessage(
-        { type: "render", code, componentName },
-        "*"
-      );
-    }
+    if (!loaded || !iframeRef.current?.contentWindow || !code) return;
+
+    iframeRef.current.contentWindow.postMessage(
+      { type: "render", code, componentName },
+      "*"
+    );
   }, [code, componentName, loaded]);
 
   const handleLoad = () => {
     setLoaded(true);
-    if (iframeRef.current?.contentWindow && code) {
-      iframeRef.current.contentWindow.postMessage(
-        { type: "render", code, componentName },
-        "*"
-      );
-    }
   };
 
   return (

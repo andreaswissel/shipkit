@@ -6,12 +6,14 @@ export class CodeValidator {
     const errors: string[] = [];
     const warnings: string[] = [];
 
-    const syntaxResult = this.checkSyntax(code, framework);
+    const syntaxResult = this.checkSyntax(code);
     errors.push(...syntaxResult.errors);
 
-    const structureResult = this.checkStructure(code, framework);
-    errors.push(...structureResult.errors);
-    warnings.push(...structureResult.warnings);
+    if (errors.length === 0) {
+      const structureResult = this.checkStructure(code, framework);
+      errors.push(...structureResult.errors);
+      warnings.push(...structureResult.warnings);
+    }
 
     return {
       valid: errors.length === 0,
@@ -20,10 +22,7 @@ export class CodeValidator {
     };
   }
 
-  private checkSyntax(
-    code: string,
-    framework: Framework
-  ): { errors: string[] } {
+  private checkSyntax(code: string): { errors: string[] } {
     const errors: string[] = [];
 
     const isTypeScript = this.looksLikeTypeScript(code);

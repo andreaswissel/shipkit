@@ -37,7 +37,9 @@ export class OpenAIProvider implements AIProvider {
       if (error instanceof OpenAI.APIError) {
         throw new Error(`OpenAI API error: ${error.message}`);
       }
-      throw error;
+      throw new Error(
+        error instanceof Error ? error.message : `OpenAI error: ${String(error)}`
+      );
     }
   }
 

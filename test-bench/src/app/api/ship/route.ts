@@ -91,12 +91,25 @@ ${usedComps.includes("Button") ? `        <Button onClick={() => setLoading(!loa
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+
+    if (typeof body.name !== "string" || typeof body.description !== "string") {
+      return NextResponse.json(
+        {
+          success: false,
+          files: [],
+          errors: ["'name' and 'description' must be strings"],
+        },
+        { status: 400 }
+      );
+    }
     
     const spec: FeatureSpec = {
       name: body.name,
       description: body.description,
-      requirements: body.requirements || [],
-      acceptanceCriteria: body.acceptanceCriteria,
+      requirements: Array.isArray(body.requirements) ? body.requirements : [],
+      acceptanceCriteria: Array.isArray(body.acceptanceCriteria)
+        ? body.acceptanceCriteria
+        : undefined,
     };
 
     const user: User | undefined = body.user ? {
