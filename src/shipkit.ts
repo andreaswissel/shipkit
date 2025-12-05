@@ -19,11 +19,19 @@ import type {
 import type { FeatureFlagProvider, FlagConfig } from "./flags.js";
 import type { Pipeline, PullRequest } from "./pipeline.js";
 import type { WriteResult } from "./writer.js";
+import type {
+  PreviewConfig,
+  PreviewEnvironment,
+  PreviewProvider,
+  SnapshotStrategy,
+} from "./preview.js";
 
 export interface ShipKitFullConfig extends ShipKitConfig {
   authProvider?: AuthProvider;
   flagProvider?: FeatureFlagProvider;
   pipeline?: Pipeline;
+  previewProvider?: PreviewProvider;
+  previewConfig?: PreviewConfig;
 }
 
 export interface FullShipResult extends ShipResult {
@@ -31,6 +39,8 @@ export interface FullShipResult extends ShipResult {
   writeResult?: WriteResult;
   pullRequest?: PullRequest;
   flagName?: string;
+  previewEnvironment?: PreviewEnvironment;
+  branchName?: string;
 }
 
 interface ResolvedShipOptions {
@@ -40,6 +50,8 @@ interface ResolvedShipOptions {
   createPR: boolean;
   createFlag: boolean;
   branchPrefix: string;
+  createPreview: boolean;
+  snapshotStrategy?: SnapshotStrategy;
 }
 
 interface AIResponseComponent {
@@ -108,6 +120,9 @@ export class ShipKit {
     const prError = await this.createPullRequest(spec, result, opts);
     if (prError) return prError;
 
+    const previewError = await this.createPreviewEnvironment(spec, result, opts, user);
+    if (previewError) return previewError;
+
     await this.createFeatureFlag(spec, result, opts);
 
     return result;
@@ -121,6 +136,8 @@ export class ShipKit {
       createPR: options.createPR ?? false,
       createFlag: options.createFlag ?? false,
       branchPrefix: options.branchPrefix ?? "feature/shipkit-",
+      createPreview: options.createPreview ?? false,
+      snapshotStrategy: options.snapshotStrategy,
     };
   }
 
@@ -233,6 +250,7 @@ export class ShipKit {
     }
 
     const branchName = `${opts.branchPrefix}${this.slugify(spec.name)}`;
+    result.branchName = branchName;
 
     try {
       await this.config.pipeline.createBranch(branchName);
@@ -251,6 +269,49 @@ export class ShipKit {
       result.success = false;
       result.errors = [
         `Pipeline error: ${error instanceof Error ? error.message : String(error)}`,
+      ];
+      return result;
+    }
+
+    return null;
+  }
+
+  private async createPreviewEnvironment(
+    spec: FeatureSpec,
+    result: FullShipResult,
+    opts: ResolvedShipOptions,
+    user?: User
+  ): Promise<FullShipResult | null> {
+    if (!opts.createPreview) return null;
+
+    if (!this.config.previewProvider) {
+      result.success = false;
+      result.errors = [
+        ...(result.errors ?? []),
+        "createPreview requested but no preview provider configured",
+      ];
+      return result;
+    }
+
+    const branchName = result.branchName ?? `${opts.branchPrefix}${this.slugify(spec.name)}`;
+    const snapshotStrategy =
+      opts.snapshotStrategy ?? this.config.previewConfig?.defaultSnapshotStrategy;
+
+    try {
+      const env = await this.config.previewProvider.createPreview({
+        feature: result.feature,
+        files: result.files,
+        spec,
+        user,
+        branchName,
+        snapshotStrategy,
+      });
+      result.previewEnvironment = env;
+    } catch (error) {
+      result.success = false;
+      result.errors = [
+        ...(result.errors ?? []),
+        `Preview error: ${error instanceof Error ? error.message : String(error)}`,
       ];
       return result;
     }

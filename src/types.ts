@@ -106,4 +106,6 @@ export interface ShipOptions {
   createPR?: boolean;
   createFlag?: boolean;
   branchPrefix?: string;
+  createPreview?: boolean;
+  snapshotStrategy?: import("./preview.js").SnapshotStrategy;
 }
