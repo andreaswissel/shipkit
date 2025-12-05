@@ -170,8 +170,12 @@ export class ShipKit {
   ): Promise<FullShipResult | null> {
     if (!opts.validate) return null;
 
+    const codeComponents = result.feature.components.filter(
+      (component) => this.isCodeFile(component.path)
+    );
+
     const validations = await Promise.all(
-      result.feature.components.map((component) =>
+      codeComponents.map((component) =>
         this.validator.validate(component.code, this.config.framework)
       )
     );
@@ -301,6 +305,15 @@ export class ShipKit {
       .replace(/^-|-$/g, "");
   }
 
+  private sanitizeForCode(name: string): string {
+    return name.replace(/["'`\\]/g, "");
+  }
+
+  private isCodeFile(path: string): boolean {
+    const codeExtensions = [".js", ".jsx", ".ts", ".tsx", ".vue", ".svelte"];
+    return codeExtensions.some((ext) => path.endsWith(ext));
+  }
+
   private buildPRDescription(
     spec: FeatureSpec,
     feature: GeneratedFeature
@@ -344,11 +357,13 @@ export class ShipKit {
 
   private buildPrompt(spec: FeatureSpec, context: AIContext): string {
     const componentContext = this.registry.toContext();
+    const safeName = this.sanitizeForCode(spec.name);
+    const safeDescription = this.sanitizeForCode(spec.description);
 
     return `You are a frontend engineer. Generate a ${context.framework} feature based on the following specification.
 
-## Feature: ${spec.name}
-${spec.description}
+## Feature: ${safeName}
+${safeDescription}
 
 ## Requirements:
 ${spec.requirements.map((r) => `- ${r}`).join("\n")}
