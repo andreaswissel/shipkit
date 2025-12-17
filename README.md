@@ -210,6 +210,7 @@ const result = await auth.authorize(
 - Vue
 - Svelte
 - Solid
+- Angular
 - Vanilla JS
 
 ## Development
